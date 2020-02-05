@@ -3,7 +3,86 @@
 
 # <a href="https://colab.research.google.com/github/mattronome52/Disposed2BOverconfident/blob/master/Disposed2BOverconfident.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
 
-# In[16]:
+# In[1]:
+
+
+## Market Class ##
+import json
+from collections import namedtuple
+
+class Market(object):
+  STOCK_NAMES = ["A", "B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","W","Z"]
+  MAX_NUM_STOCKS = len(STOCK_NAMES)
+  # initialStocks = []
+  currentPeriod = 0
+  testStockFilename = 'TestStocks.json'
+
+  def __init__(self, name, numStocks, testMode = False):
+    if (numStocks > self.MAX_NUM_STOCKS):
+      print(f"ERROR: No more than {len(self.MAX_NUM_STOCKS)} stocks can be created")
+      raise
+    self.name = name
+    if (testMode == True):
+        self.initialStocks = self.readStocksJSONFromFile()
+    else:
+        self.initialStocks = (self.__generateStocks(numStocks))
+        
+  def initialStocks(self):
+    return self.initialStocks
+
+  def __encodeStocksToJSONString(self):
+    # write them out as array of json-encoded Stocks
+    encodedStocks = '['
+    i = 0
+    numStocks = len(self.initialStocks)
+    while i < numStocks:
+      encodedStocks = encodedStocks + self.initialStocks[i].toJSONString()
+      if (i < numStocks - 1):
+        encodedStocks = encodedStocks + ', \n'
+      i = i + 1
+    encodedStocks = encodedStocks + ']\n'    
+    
+    return encodedStocks
+
+  def readStocksJSONFromFile(self):
+    testFileName = self.testStockFilename
+    stocks = []
+
+    with open(testFileName, "r") as testStocksFile:
+      stockArray = json.load(testStocksFile)
+
+    for stock in stockArray:
+        newStock = convertDictToObject(stock)
+        stocks.append(newStock)
+    return stocks
+
+  def writeStocksJSONToFile(self):
+    testFileName = self.testStockFilename
+    with open(testFileName, "w") as testStocksFile:
+      testStocksFile.write(self.__encodeStocksToJSONString())
+
+  def __generateStocks(self, numStocks):
+    i = 0
+    stocks = []
+    while (i < numStocks):
+      newStock = Stock(self.STOCK_NAMES[i])
+      stocks.append(newStock)
+      i = i+1
+    return stocks
+
+  # Print out each stock
+  def description(self):
+    print(f'Market name: {self.name}')
+    print(f'  current period: {Market.currentPeriod}')
+
+    if (len(self.initialStocks) == 0):
+      print("  Market has no stocks")
+    else:
+      for stock in self.initialStocks:
+        stock.description()
+
+
+# In[2]:
 
 
 from random import choices
@@ -103,21 +182,12 @@ class Stock(object):
     return numberGainsPrevious
 
   def toJSONString(self):
-    # jsonString = json.dumps(self, default=convertObjectToDict, indent=4, sort_keys=True)
+    return json.dumps(self, default=convertObjectToDict, sort_keys=True)
 
-    jsonString = json.dumps(self, default=convertObjectToDict, sort_keys=True)
-
-    return jsonString
-
-
+  # @classmethod
   def fromJSONString(self, string):
     obj = json.loads(string,object_hook=convertDictToObject)
     return obj
-
-
-  # def toJSONString(self):
-    # jsonString = json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
-    # return jsonString
 
   def description(self):    
     print(f'Stock: {self.name}')
@@ -130,109 +200,26 @@ class Stock(object):
       print(f'  price for current period: {self.priceForTestPeriod(self.marketClass.currentPeriod)}')
 
 
-# In[17]:
+# In[3]:
 
 
-aStock = Stock("bar")
-aStock.toJSONString()
-cloneStock = aStock.fromJSONString('{"__class__": "Stock", "__module__": "__main__", "initialPrice": 10, "name": "bar", "priceChangeHistory": [-1, 1, -1, 5, 1, -1, -3, -3, 5, 5], "quality": "bad"}')
-
-
-# In[19]:
-
-
-cloneStock.description()
-aStock.description()
-
-
-# In[5]:
-
-
-## Market Class ##
-import json
-from collections import namedtuple
-
-class Market(object):
-  STOCK_NAMES = ["A", "B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","W","Z"]
-  MAX_NUM_STOCKS = len(STOCK_NAMES)
-  # initialStocks = []
-  currentPeriod = 0
-  testStockFilename = 'TestStocks.json'
-
-  def __init__(self, name, numStocks, testMode = False):
-    if (numStocks > self.MAX_NUM_STOCKS):
-      print(f"ERROR: No more than {len(self.MAX_NUM_STOCKS)} stocks can be created")
-      raise
-    self.name = name
-    if (testMode == True):
-        self.readStocksJSONFromFile()
-    else:
-        self.initialStocks = (self.__generateStocks(numStocks))
-        
-  def initialStocks(self):
-    return self.initialStocks
-
-  def __encodeStocksToJSONString(self):
-    encodedStocks = ''
-    for stock in self.initialStocks:
-      encodedStocks = encodedStocks + stock.toJSONString()
-    return encodedStocks
-
-  def readStocksJSONFromFile(self):
-    testFileName = self.testStockFilename
-    with open(testFileName, "r") as testStocksFile:
-      oneStockStr = json.load(testStocksFile)
-      stockObject = Stock.fromJSONString(oneStockStr)
-      print (f'OneStock: {oneStock}')
-      stockObject.description()
-
-  def writeStocksJSONToFile(self):
-    testFileName = self.testStockFilename
-    # testFileName = self.testStockFilename + datetime.now().strftime("%Y%m%d-%H%M%S") + '.json'
-    with open(testFileName, "w") as testStocksFile:
-      testStocksFile.write(self.__encodeStocksToJSONString())
-
-  def __generateStocks(self, numStocks):
-    i = 0
-    stocks = []
-    while (i < numStocks):
-      newStock = Stock(self.STOCK_NAMES[i])
-      stocks.append(newStock)
-      i = i+1
-    return stocks
-
-  # Print out each stock
-  def description(self):
-    print(f'Market name: {self.name}')
-    print(f'  current period: {Market.currentPeriod}')
-
-    if (len(self.initialStocks) == 0):
-      print("  Market has no stocks")
-    else:
-      for stock in self.initialStocks:
-        stock.description()
-
-
-# In[ ]:
-
-
-aMarket = Market('foo', 10, testMode= False)
+aMarket = Market('test1', 10, testMode= False)
 aMarket.description()
 
 
-# In[ ]:
+# In[4]:
 
 
 aMarket.writeStocksJSONToFile()
 
 
+# In[5]:
+
+
+testMarket = Market('loadedMarket', 10, testMode= True)
+
+
 # In[6]:
-
-
-testMarket = Market('foo', 10, testMode= True)
-
-
-# In[ ]:
 
 
 testMarket.description()
