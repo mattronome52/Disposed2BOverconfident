@@ -3,45 +3,12 @@
 
 # <a href="https://colab.research.google.com/github/mattronome52/Disposed2BOverconfident/blob/master/Disposed2BOverconfident.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
 
-# In[1]:
-
-
-## Market Class ##
-class Market(object):
-  STOCK_NAMES = ["A", "B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","W","Z"]
-  MAX_NUM_STOCKS = len(STOCK_NAMES)
-  initialStocks = []
-  currentPeriod = 0
-
-  def __init__(self, name, numStocks):
-    if (numStocks > self.MAX_NUM_STOCKS):
-        print(f"ERROR: No more than {len(self.MAX_NUM_STOCKS)} stocks can be created")
-        raise
-    self.name = name
-    self.initialStocks.extend(self.__generateStocks(numStocks))
-    
-  def __generateStocks(self, numStocks):
-    i = 0
-    stocks = []
-    while (i < numStocks):
-      newStock = Stock(self.STOCK_NAMES[i], self)
-      stocks.append(newStock)
-      i = i+1
-    return stocks
-
-  # Print out each stock
-  def description(self):
-    print(f'Market name: {self.name}')
-    print(f'  current period: {Market.currentPeriod}')
-
-    for stock in self.initialStocks:
-        stock.description()
-
-
-# In[2]:
+# In[16]:
 
 
 from random import choices
+import json
+from json import JSONEncoder
 
 ####### Constants ######
 ## Stock Class ##
@@ -52,17 +19,55 @@ PRICE_CHANGE_WEIGHTS_GOOD = [0.2, 0.2, 0.3, 0.3]
 PRICE_CHANGE_WEIGHTS_BAD = [0.3, 0.3, 0.2, 0.2]
 INITIAL_PRICE = 10
 
-class Stock(object):
+"""
+A function takes in a custom object and returns a dictionary representation of the object.
+This dict representation includes meta data such as the object's module and class names.
+"""
+def convertObjectToDict(obj):
+  #  Populate the dictionary with object meta data 
+  obj_dict = {
+    "__class__": obj.__class__.__name__,
+    "__module__": obj.__module__
+  }
+  #  Populate the dictionary with object properties
+  obj_dict.update(obj.__dict__)
+  return obj_dict
 
-  def __init__(self, name, market):
+"""
+Function that takes in a dict and returns a custom object associated with the dict.
+This function makes use of the "__module__" and "__class__" metadata in the dictionary
+to know which object type to create.
+"""
+def convertDictToObject(our_dict):
+  if "__class__" in our_dict:
+    # Pop ensures we remove metadata from the dict to leave only the instance arguments
+    class_name = our_dict.pop("__class__")
+    
+    # Get the module name from the dict and import it
+    module_name = our_dict.pop("__module__")
+    
+    # We use the built in __import__ function since the module name is not yet known at runtime
+    module = __import__(module_name)
+    
+    # Get the class from the module
+    class_ = getattr(module,class_name)
+    
+    # Use dictionary unpacking to initialize the object
+    obj = class_(**our_dict)
+  else:
+    obj = our_dict
+  return obj
+
+
+class Stock(object):
+  def __init__(self, name, initialPrice = None, quality = None, priceChangeHistory = None):
     global QUALITIES, QUALITY_WEIGHTS, PRICE_CHANGES, PRICE_CHANGE_WEIGHTS_GOOD, PRICE_CHANGE_WEIGHTS_BAD
     
     self.name = name
+    self.initialPrice = INITIAL_PRICE
     randQualityList = choices(QUALITIES, QUALITY_WEIGHTS) # random choice with weightings.
     self.quality = randQualityList[0]  # Get string from list
     self.priceChangeHistory = self.__createPriceChangeHistory()
-    self.marketClass = market # needs to have backpointer to query the period
-    self.initialPrice = INITIAL_PRICE
 
   def __createPriceChangeHistory(self):
     global QUALITIES, QUALITY_WEIGHTS, PRICE_CHANGE_WEIGHTS_GOOD, PRICE_CHANGE_WEIGHTS_BAD, PRICE_CHANGES
@@ -87,15 +92,32 @@ class Stock(object):
     priceChangeHistoryForTest = self.priceChangeHistory[3:]
     
     if periodNum > len(priceChangeHistoryForTest):
-        print("ERROR: Asking for a test period that hasn't been created yet")
-        print(f'    Period: {periodNum}, max defined periods: {len(priceChangeHistoryForTest)}')
-        raise
+      print("ERROR: Asking for a test period that hasn't been created yet")
+      print(f'    Period: {periodNum}, max defined periods: {len(priceChangeHistoryForTest)}')
+      raise
         
     return self.initialPrice() + sum(priceChangeHistoryForTest[0:periodNum])
 
-  def gainsPrevious (self):
-      numberGainsPrevious = sum(1 for priceChangePrev in self.priceChangeHistory[:3] if priceChangePrev > 0)
-      return numberGainsPrevious
+  def gainsPrevious(self):
+    numberGainsPrevious = sum(1 for priceChangePrev in self.priceChangeHistory[:3] if priceChangePrev > 0)
+    return numberGainsPrevious
+
+  def toJSONString(self):
+    # jsonString = json.dumps(self, default=convertObjectToDict, indent=4, sort_keys=True)
+
+    jsonString = json.dumps(self, default=convertObjectToDict, sort_keys=True)
+
+    return jsonString
+
+
+  def fromJSONString(self, string):
+    obj = json.loads(string,object_hook=convertDictToObject)
+    return obj
+
+
+  # def toJSONString(self):
+    # jsonString = json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
+    # return jsonString
 
   def description(self):    
     print(f'Stock: {self.name}')
@@ -108,7 +130,115 @@ class Stock(object):
       print(f'  price for current period: {self.priceForTestPeriod(self.marketClass.currentPeriod)}')
 
 
-# In[3]:
+# In[17]:
+
+
+aStock = Stock("bar")
+aStock.toJSONString()
+cloneStock = aStock.fromJSONString('{"__class__": "Stock", "__module__": "__main__", "initialPrice": 10, "name": "bar", "priceChangeHistory": [-1, 1, -1, 5, 1, -1, -3, -3, 5, 5], "quality": "bad"}')
+
+
+# In[19]:
+
+
+cloneStock.description()
+aStock.description()
+
+
+# In[5]:
+
+
+## Market Class ##
+import json
+from collections import namedtuple
+
+class Market(object):
+  STOCK_NAMES = ["A", "B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","W","Z"]
+  MAX_NUM_STOCKS = len(STOCK_NAMES)
+  # initialStocks = []
+  currentPeriod = 0
+  testStockFilename = 'TestStocks.json'
+
+  def __init__(self, name, numStocks, testMode = False):
+    if (numStocks > self.MAX_NUM_STOCKS):
+      print(f"ERROR: No more than {len(self.MAX_NUM_STOCKS)} stocks can be created")
+      raise
+    self.name = name
+    if (testMode == True):
+        self.readStocksJSONFromFile()
+    else:
+        self.initialStocks = (self.__generateStocks(numStocks))
+        
+  def initialStocks(self):
+    return self.initialStocks
+
+  def __encodeStocksToJSONString(self):
+    encodedStocks = ''
+    for stock in self.initialStocks:
+      encodedStocks = encodedStocks + stock.toJSONString()
+    return encodedStocks
+
+  def readStocksJSONFromFile(self):
+    testFileName = self.testStockFilename
+    with open(testFileName, "r") as testStocksFile:
+      oneStockStr = json.load(testStocksFile)
+      stockObject = Stock.fromJSONString(oneStockStr)
+      print (f'OneStock: {oneStock}')
+      stockObject.description()
+
+  def writeStocksJSONToFile(self):
+    testFileName = self.testStockFilename
+    # testFileName = self.testStockFilename + datetime.now().strftime("%Y%m%d-%H%M%S") + '.json'
+    with open(testFileName, "w") as testStocksFile:
+      testStocksFile.write(self.__encodeStocksToJSONString())
+
+  def __generateStocks(self, numStocks):
+    i = 0
+    stocks = []
+    while (i < numStocks):
+      newStock = Stock(self.STOCK_NAMES[i])
+      stocks.append(newStock)
+      i = i+1
+    return stocks
+
+  # Print out each stock
+  def description(self):
+    print(f'Market name: {self.name}')
+    print(f'  current period: {Market.currentPeriod}')
+
+    if (len(self.initialStocks) == 0):
+      print("  Market has no stocks")
+    else:
+      for stock in self.initialStocks:
+        stock.description()
+
+
+# In[ ]:
+
+
+aMarket = Market('foo', 10, testMode= False)
+aMarket.description()
+
+
+# In[ ]:
+
+
+aMarket.writeStocksJSONToFile()
+
+
+# In[6]:
+
+
+testMarket = Market('foo', 10, testMode= True)
+
+
+# In[ ]:
+
+
+testMarket.description()
+
+
+# In[ ]:
 
 
 from enum import Enum
@@ -117,7 +247,6 @@ import random
 class BuyStrategy(Enum):
   RANDOM = 1
   BUY_GAINERS = 2 # stocks with current price > starting price
-  BUY_LOSERS  = 3 # stocks with current price > starting price 
 
 class SellStrategy(Enum):
   RANDOM = 1
@@ -190,35 +319,36 @@ class Investor:
         stock.description()
 
 
-# In[4]:
+# In[ ]:
 
 
-market = Market('Changeable', 20)
-market.description()
+market = Market('Changeable', 20, testMode=False)
+market.toJSON()
+# market.description()
 
 
-# In[5]:
+# In[ ]:
 
 
 investor1 = Investor("firstInvestor", 'RANDOM', 'RANDOM')
 investor2 = Investor("secondInvestor", 'BUY_GAINERS', 'RANDOM')
 
 
-# In[6]:
+# In[ ]:
 
 
 investor1.description()
 investor2.description()
 
 
-# In[7]:
+# In[ ]:
 
 
 investor1.createInitialPortfolioWithNumStocks(5)
 investor2.createInitialPortfolioWithNumStocks(5)
 
 
-# In[8]:
+# In[ ]:
 
 
 investor1.description()
