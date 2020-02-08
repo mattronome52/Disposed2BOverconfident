@@ -6,97 +6,9 @@
 # In[1]:
 
 
-## Market Class ##
-import json
-from collections import namedtuple
-
-class Market(object):
-  STOCK_NAMES = ["A", "B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","W","Z"]
-  MAX_NUM_STOCKS = len(STOCK_NAMES)
-  # initialStocks = []
-  currentPeriod = 0
-  testStockFilename = 'TestStocks.json'
-
-  def __init__(self, name, numStocks, testMode = False):
-    if (numStocks > self.MAX_NUM_STOCKS):
-      print(f"ERROR: No more than {len(self.MAX_NUM_STOCKS)} stocks can be created")
-      raise
-    self.name = name
-    if (testMode == True):
-        self.initialStocks = self.readStocksJSONFromFile()
-    else:
-        self.initialStocks = (self.__generateStocks(numStocks))
-        
-  def initialStocks(self):
-    return self.initialStocks
-
-  def __encodeStocksToJSONString(self):
-    # write them out as array of json-encoded Stocks
-    encodedStocks = '['
-    i = 0
-    numStocks = len(self.initialStocks)
-    while i < numStocks:
-      encodedStocks = encodedStocks + self.initialStocks[i].toJSONString()
-      if (i < numStocks - 1):
-        encodedStocks = encodedStocks + ', \n'
-      i = i + 1
-    encodedStocks = encodedStocks + ']\n'    
-    
-    return encodedStocks
-
-  def readStocksJSONFromFile(self):
-    testFileName = self.testStockFilename
-    stocks = []
-
-    with open(testFileName, "r") as testStocksFile:
-      stockArray = json.load(testStocksFile)
-
-    for stock in stockArray:
-        newStock = convertDictToObject(stock)
-        stocks.append(newStock)
-    return stocks
-
-  def writeStocksJSONToFile(self):
-    testFileName = self.testStockFilename
-    with open(testFileName, "w") as testStocksFile:
-      testStocksFile.write(self.__encodeStocksToJSONString())
-
-  def __generateStocks(self, numStocks):
-    i = 0
-    stocks = []
-    while (i < numStocks):
-      newStock = Stock(self.STOCK_NAMES[i])
-      stocks.append(newStock)
-      i = i+1
-    return stocks
-
-  # Print out each stock
-  def description(self):
-    print(f'Market name: {self.name}')
-    print(f'  current period: {Market.currentPeriod}')
-
-    if (len(self.initialStocks) == 0):
-      print("  Market has no stocks")
-    else:
-      for stock in self.initialStocks:
-        stock.description()
-
-
-# In[2]:
-
-
 from random import choices
 import json
 from json import JSONEncoder
-
-####### Constants ######
-## Stock Class ##
-QUALITIES = ['good', 'bad']
-QUALITY_WEIGHTS = [0.25, 0.75]
-PRICE_CHANGES = [-3, -1, 1, 5]
-PRICE_CHANGE_WEIGHTS_GOOD = [0.2, 0.2, 0.3, 0.3]
-PRICE_CHANGE_WEIGHTS_BAD = [0.3, 0.3, 0.2, 0.2]
-INITIAL_PRICE = 10
 
 """
 A function takes in a custom object and returns a dictionary representation of the object.
@@ -129,7 +41,7 @@ def convertDictToObject(our_dict):
     module = __import__(module_name)
     
     # Get the class from the module
-    class_ = getattr(module,class_name)
+    class_ = getattr(module, class_name)
     
     # Use dictionary unpacking to initialize the object
     obj = class_(**our_dict)
@@ -137,16 +49,20 @@ def convertDictToObject(our_dict):
     obj = our_dict
   return obj
 
+## Stock Class ##
+QUALITIES = ['good', 'bad']
+QUALITY_WEIGHTS = [0.25, 0.75]
+PRICE_CHANGES = [-3, -1, 1, 5]
+PRICE_CHANGE_WEIGHTS_GOOD = [0.2, 0.2, 0.3, 0.3]
+PRICE_CHANGE_WEIGHTS_BAD = [0.3, 0.3, 0.2, 0.2]
+INITIAL_PRICE = 10
 
 class Stock(object):
-  def __init__(self, name, initialPrice = None, quality = None, priceChangeHistory = None):
-    global QUALITIES, QUALITY_WEIGHTS, PRICE_CHANGES, PRICE_CHANGE_WEIGHTS_GOOD, PRICE_CHANGE_WEIGHTS_BAD
-    
+  def __init__(self, name, initialPrice = None, quality = None, priceChangeHistory = None, testing = False):
     self.name = name
-    self.initialPrice = INITIAL_PRICE
-    randQualityList = choices(QUALITIES, QUALITY_WEIGHTS) # random choice with weightings.
-    self.quality = randQualityList[0]  # Get string from list
-    self.priceChangeHistory = self.__createPriceChangeHistory()
+    self.initialPrice = initialPrice
+    self.quality = quality
+    self.priceChangeHistory = priceChangeHistory
 
   def __createPriceChangeHistory(self):
     global QUALITIES, QUALITY_WEIGHTS, PRICE_CHANGE_WEIGHTS_GOOD, PRICE_CHANGE_WEIGHTS_BAD, PRICE_CHANGES
@@ -159,6 +75,14 @@ class Stock(object):
 
     generatedPriceChangeHistory = choices(PRICE_CHANGES, weights, k=10)
     return generatedPriceChangeHistory
+
+  def initializeRandom(self):
+    global QUALITIES, QUALITY_WEIGHTS, PRICE_CHANGES, PRICE_CHANGE_WEIGHTS_GOOD, PRICE_CHANGE_WEIGHTS_BAD
+    
+    self.initialPrice = INITIAL_PRICE
+    randQualityList = choices(QUALITIES, QUALITY_WEIGHTS) # random choice with weightings.
+    self.quality = randQualityList[0]  # Get string from list
+    self.priceChangeHistory = self.__createPriceChangeHistory()
 
   def name(self):
     return self.name
@@ -184,48 +108,133 @@ class Stock(object):
   def toJSONString(self):
     return json.dumps(self, default=convertObjectToDict, sort_keys=True)
 
-  # @classmethod
-  def fromJSONString(self, string):
-    obj = json.loads(string,object_hook=convertDictToObject)
-    return obj
+  @classmethod
+  def fromJSONString(cls, jsonString):
+    return json.loads(jsonString, object_hook=convertDictToObject)
 
   def description(self):    
     print(f'Stock: {self.name}')
-    print(f'  quality:                  {self.quality}')
-    print(f'  price change history:     {self.priceChangeHistory[3:]}')
-    
+    print(f'  quality:              {self.quality}')
+    print(f'  initial price:        {self.initialPrice}')
+    print(f'  price change history: {self.priceChangeHistory}')
+
+    return
+    # Can be used when integrated with Market class
     if (Market.currentPeriod == 0):
-      print(f'  price for current period: {self.initialPrice}')
+      print(f'  price for current period:  {self.initialPrice}')
     else:
-      print(f'  price for current period: {self.priceForTestPeriod(self.marketClass.currentPeriod)}')
+      print(f'  price for current period:  {self.priceForTestPeriod(self.marketClass.currentPeriod)}')
+
+    if (Market.currentPeriod == 0):
+      print(f'  price for current period:  {self.initialPrice}')
+    else:
+      print(f'  price for current period:  {self.priceForTestPeriod(self.marketClass.currentPeriod)}')
 
 
-# In[3]:
+# In[2]:
 
 
-aMarket = Market('test1', 10, testMode= False)
-aMarket.description()
+## Market Class ##
+import json
+from collections import namedtuple
+
+TEST_READ_STOCKS_FROM_FILE = "ReadStocksFromFile"
+TEST_WRITE_STOCKS_TO_FILE = "WriteStocksToFile"
+testMode = False
+
+class Market(object):
+  STOCK_NAMES = ["A", "B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","W","Z"]
+  MAX_NUM_STOCKS = len(STOCK_NAMES)
+  currentPeriod = 0
+  testStockFilename = 'TestStocks.json'
+
+  def __init__(self, name, numStocks = 10):
+    global testMode
+    print (f'testing is =====> {testMode}')
+    if (numStocks > self.MAX_NUM_STOCKS):
+      print(f"ERROR: No more than {len(self.MAX_NUM_STOCKS)} stocks can be created")
+      raise
+    self.name = name
+    
+    if (testMode == TEST_READ_STOCKS_FROM_FILE):
+      self.initialStocks = self.readStocksJSONFromFile()
+    else:
+      self.initialStocks = (self.__generateStocks(numStocks))
+    
+      if (testMode == TEST_WRITE_STOCKS_TO_FILE):
+        self.__writeStocksJSONToFile()
+
+  def __generateStocks(self, numStocks):
+    global testMode
+    i = 0
+    stocks = []
+    while (i < numStocks):
+      newStock = Stock(self.STOCK_NAMES[i])
+      newStock.initializeRandom()
+      stocks.append(newStock)
+      i = i+1
+    return stocks
+
+  def __writeStocksJSONToFile(self):
+    testFileName = self.testStockFilename
+    with open(testFileName, "w") as testStocksFile:
+      testStocksFile.write(self.__encodeStocksToJSONString())
+
+  def __encodeStocksToJSONString(self):
+    # write them out as array of json-encoded Stocks
+    encodedStocks = '['
+    i = 0
+    numStocks = len(self.initialStocks)
+    while i < numStocks:
+      encodedStocks = encodedStocks + self.initialStocks[i].toJSONString()
+      if (i < numStocks - 1):
+        encodedStocks = encodedStocks + ', \n'
+      i = i + 1
+    encodedStocks = encodedStocks + ']\n'    
+    return encodedStocks
+
+  def readStocksJSONFromFile(self):
+    testFileName = self.testStockFilename
+    stocks = []
+
+    with open(testFileName, "r") as testStocksFile:
+      stockArray = json.load(testStocksFile)
+
+    for stockDict in stockArray:
+      # Matt: figure out why double quotes become single when reading in
+      # until then, replace them since JSON needs double quotes
+      dictString = str(stockDict)
+      dictString = dictString.replace("\'", "\"")
+
+      newStock = Stock.fromJSONString(dictString)
+      stocks.append(newStock)
+        
+    return stocks
+
+  def initialStocks(self):
+    return self.initialStocks
+
+  # Print out each stock
+  def description(self):
+    print(f'Market name: {self.name}')
+    print(f'  current period: {Market.currentPeriod}')
+
+    if (len(self.initialStocks) == 0):
+      print("  Market has no stocks")
+    else:
+      for stock in self.initialStocks:
+        stock.description()
 
 
-# In[4]:
+# In[11]:
 
 
-aMarket.writeStocksJSONToFile()
-
-
-# In[5]:
-
-
-testMarket = Market('loadedMarket', 10, testMode= True)
-
-
-# In[6]:
-
-
+testMode = "ReadStocksFromFile"
+testMarket = Market('Changeable')
 testMarket.description()
 
 
-# In[ ]:
+# In[12]:
 
 
 from enum import Enum
@@ -241,8 +250,9 @@ class SellStrategy(Enum):
   SELL_LOSERS  = 3
 
 class Investor:
-  def __init__(self, name, buyStrategy, sellStrategy):
+  def __init__(self, name, market, buyStrategy, sellStrategy):
     self.name = name
+    self.market = market
     self.portfolio = []
 
     if (buyStrategy in BuyStrategy.__members__):
@@ -258,6 +268,9 @@ class Investor:
   def name(self):
     return self.name
 
+  def market(self):
+    return self.market
+
   def portfolio(self):
     return self.portfolio
 
@@ -268,17 +281,17 @@ class Investor:
     # need to test numStocks is within bounds
     # Matt: for now, just implementing random strategy
     if (self.buyStrategy is BuyStrategy.RANDOM.name):
-      self.portfolio = random.sample(Market.initialStocks, numStocks)
+      self.portfolio = random.sample(self.market.initialStocks, numStocks)
     elif (self.buyStrategy is BuyStrategy.BUY_GAINERS.name):
       # Katrin: Pick five stock at random and then go through market stocks and replace if more gains in previous periods
-      stockMaxPrevGains = random.sample(Market.initialStocks, numStocks)
+      stockMaxPrevGains = random.sample(self.market.initialStocks, numStocks)
       i = 0
-      while (i < (len(Market.initialStocks)-2)):
-        currentGains = Market.initialStocks[i].gainsPrevious()
+      while (i < (len(self.market.initialStocks)-2)):
+        currentGains = self.market.initialStocks[i].gainsPrevious()
         j = 0
         while (j < numStocks):
           if (currentGains > stockMaxPrevGains[j].gainsPrevious()):
-            stockMaxPrevGains[j] = Market.initialStocks[i]
+            stockMaxPrevGains[j] = self.market.initialStocks[i]
             break
           j = j+1
         i = i+1
@@ -306,39 +319,36 @@ class Investor:
         stock.description()
 
 
-# In[ ]:
+# In[13]:
 
 
-market = Market('Changeable', 20, testMode=False)
-market.toJSON()
-# market.description()
+investor1 = Investor("firstInvestor", testMarket, 'RANDOM', 'RANDOM')
+investor2 = Investor("secondInvestor", testMarket, 'BUY_GAINERS', 'RANDOM')
 
 
-# In[ ]:
-
-
-investor1 = Investor("firstInvestor", 'RANDOM', 'RANDOM')
-investor2 = Investor("secondInvestor", 'BUY_GAINERS', 'RANDOM')
-
-
-# In[ ]:
+# In[14]:
 
 
 investor1.description()
 investor2.description()
 
 
-# In[ ]:
+# In[15]:
 
 
 investor1.createInitialPortfolioWithNumStocks(5)
 investor2.createInitialPortfolioWithNumStocks(5)
 
 
-# In[ ]:
+# In[16]:
 
 
 investor1.description()
+
+
+# In[17]:
+
+
 investor2.description()
 
 
