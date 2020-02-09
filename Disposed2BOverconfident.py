@@ -3,7 +3,7 @@
 
 # <a href="https://colab.research.google.com/github/mattronome52/Disposed2BOverconfident/blob/master/Disposed2BOverconfident.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
 
-# In[1]:
+# In[ ]:
 
 
 from random import choices
@@ -131,7 +131,7 @@ class Stock(object):
       print(f'  price for current period:  {self.priceForTestPeriod(self.marketClass.currentPeriod)}')
 
 
-# In[2]:
+# In[ ]:
 
 
 ## Market Class ##
@@ -140,24 +140,23 @@ from collections import namedtuple
 
 TEST_READ_STOCKS_FROM_FILE = "ReadStocksFromFile"
 TEST_WRITE_STOCKS_TO_FILE = "WriteStocksToFile"
-testMode = False
 
 class Market(object):
   STOCK_NAMES = ["A", "B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","W","Z"]
   MAX_NUM_STOCKS = len(STOCK_NAMES)
   currentPeriod = 0
-  testStockFilename = 'TestStocks.json'
+  outputTestStockFilename = 'TestStocks.json'
 
-  def __init__(self, name, numStocks = 10):
-    global testMode
-    print (f'testing is =====> {testMode}')
+  def __init__(self, name, numStocks = 20, inputTestStockFilename = None, testMode = None):
+    # print (f'testing is =====> {testMode}')
     if (numStocks > self.MAX_NUM_STOCKS):
       print(f"ERROR: No more than {len(self.MAX_NUM_STOCKS)} stocks can be created")
       raise
     self.name = name
+    self.testMode = testMode
     
     if (testMode == TEST_READ_STOCKS_FROM_FILE):
-      self.initialStocks = self.readStocksJSONFromFile()
+      self.initialStocks = self.readStocksJSONFromFile(inputTestStockFilename)
     else:
       self.initialStocks = (self.__generateStocks(numStocks))
     
@@ -165,7 +164,6 @@ class Market(object):
         self.__writeStocksJSONToFile()
 
   def __generateStocks(self, numStocks):
-    global testMode
     i = 0
     stocks = []
     while (i < numStocks):
@@ -193,11 +191,13 @@ class Market(object):
     encodedStocks = encodedStocks + ']\n'    
     return encodedStocks
 
-  def readStocksJSONFromFile(self):
-    testFileName = self.testStockFilename
+  def readStocksJSONFromFile(self, inputTestStockFilename):
+    if (inputTestStockFilename is None):
+      print(f"ERROR: Must supply name of input file.")
+      raise
+        
     stocks = []
-
-    with open(testFileName, "r") as testStocksFile:
+    with open(inputTestStockFilename, "r") as testStocksFile:
       stockArray = json.load(testStocksFile)
 
     for stockDict in stockArray:
@@ -226,15 +226,9 @@ class Market(object):
         stock.description()
 
 
-# In[11]:
+# Currently, the filename for the archived stocks is TestStocks.json, which is in the repo.
 
-
-testMode = "ReadStocksFromFile"
-testMarket = Market('Changeable')
-testMarket.description()
-
-
-# In[12]:
+# In[ ]:
 
 
 from enum import Enum
@@ -319,34 +313,66 @@ class Investor:
         stock.description()
 
 
-# In[13]:
+# ## To verify the Buy Gainers strategy
+# I created the testStocks_BuyGainers.json file that has only five gainers: stocks with names: A,G,J,O,T
+
+# In[ ]:
 
 
-investor1 = Investor("firstInvestor", testMarket, 'RANDOM', 'RANDOM')
-investor2 = Investor("secondInvestor", testMarket, 'BUY_GAINERS', 'RANDOM')
+import unittest
+MARKET_NAME = 'marketUnitTest'
+NUM_STOCKS = 20
+
+class TestMarketClass(unittest.TestCase):
+    
+  def test_market_basic(self):
+    marketName = MARKET_NAME + ".basic"
+    self.market = Market(marketName, NUM_STOCKS)
+    self.assertEqual(self.market.name, marketName)
+    self.assertEqual(len(self.market.initialStocks), NUM_STOCKS)
+
+  def test_market_read_stocks(self):
+    marketName = MARKET_NAME + ".readFromFile"
+    self.market = Market(marketName, NUM_STOCKS, "testStocks_17Stocks.json", testMode = "ReadStocksFromFile" )
+    self.assertEqual(self.market.name, marketName)
+    self.assertEqual(self.market.testMode, "ReadStocksFromFile")
+    self.assertEqual(len(self.market.initialStocks), 17)
+    
+  def test_investor_buy_gains(self):
+    correctSelection = ["A","G","J","O","T"] # The testStocks_BuyGainers.json file has only these gainers
+    marketName = MARKET_NAME + ".buyGainers"
+    self.market = Market(marketName, NUM_STOCKS, "testStocks_BuyGainers.json", testMode = "ReadStocksFromFile" )
+    
+    # test buy gainers strategy
+    buyGainersInvestor = Investor("investor1", self.market, 'BUY_GAINERS', 'RANDOM')
+    buyGainersInvestor.createInitialPortfolioWithNumStocks(5)
+    
+    gainersPortfolio = []
+    for stock in buyGainersInvestor.portfolio:
+      gainersPortfolio.append(stock.name)
+
+    gainersPortfolio.sort()
+    correctSelection.sort()
+    
+    # Matt: Katrin, I've added these lines to help in debugging. They should be removed later.
+    print (f'gainersPortfolio: {gainersPortfolio}')
+    print (f'correctSelection: {correctSelection}')
+
+    self.assertEqual(gainersPortfolio, correctSelection)
 
 
-# In[14]:
+if __name__ == '__main__':
+    unittest.main(argv=['first-arg-is-ignored'], exit=False)
 
 
-investor1.description()
-investor2.description()
+
+# In[ ]:
 
 
-# In[15]:
+correctSelection
 
 
-investor1.createInitialPortfolioWithNumStocks(5)
-investor2.createInitialPortfolioWithNumStocks(5)
-
-
-# In[16]:
-
-
-investor1.description()
-
-
-# In[17]:
+# In[ ]:
 
 
 investor2.description()
