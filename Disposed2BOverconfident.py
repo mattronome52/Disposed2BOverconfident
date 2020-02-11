@@ -102,7 +102,13 @@ class Stock(object):
     return self.initialPrice() + sum(priceChangeHistoryForTest[0:periodNum])
 
   def gainsPrevious(self):
-    numberGainsPrevious = sum(1 for priceChangePrev in self.priceChangeHistory[:3] if priceChangePrev > 0)
+    numberGainsPrevious = 0
+    for num in self.priceChangeHistory[:3]:   
+    # checking condition 
+    if num >= 0: 
+        numberGainsPrevious += 1
+    
+    # numberGainsPrevious = sum(1 for priceChangePrev in self.priceChangeHistory[:3] if priceChangePrev > 0)
     return numberGainsPrevious
 
   def toJSONString(self):
@@ -236,12 +242,12 @@ import random
 
 class BuyStrategy(Enum):
   RANDOM = 1
-  BUY_GAINERS = 2 # stocks with current price > starting price
+  BUY_GAINERS = 2 # stocks with most up ticks, i.e., price increases
 
 class SellStrategy(Enum):
   RANDOM = 1
-  SELL_GAINERS = 2 
-  SELL_LOSERS  = 3
+  SELL_GAINERS = 2 # stocks with current price > starting price
+  SELL_LOSERS  = 3 # stocks with current price < starting price
 
 class Investor:
   def __init__(self, name, market, buyStrategy, sellStrategy):
@@ -277,24 +283,21 @@ class Investor:
     if (self.buyStrategy is BuyStrategy.RANDOM.name):
       self.portfolio = random.sample(self.market.initialStocks, numStocks)
     elif (self.buyStrategy is BuyStrategy.BUY_GAINERS.name):
-      # Katrin: Pick five stock at random and then go through market stocks and replace if more gains in previous periods
-      stockMaxPrevGains = random.sample(self.market.initialStocks, numStocks)
-      i = 0
-      while (i < (len(self.market.initialStocks)-2)):
-        currentGains = self.market.initialStocks[i].gainsPrevious()
-        j = 0
-        while (j < numStocks):
-          if (currentGains > stockMaxPrevGains[j].gainsPrevious()):
-            stockMaxPrevGains[j] = self.market.initialStocks[i]
-            break
-          j = j+1
-        i = i+1
-      self.portfolio = stockMaxPrevGains
-    else:
-      # Matt: add conditions and code for other stradegies here
-      # Katrin: I added the buying gainers strategy. We do not need a buying losers strategy.
-      print ("Invalid strategy")
-    
+        # Katrin: I changed the buying strategy in order to avoid dups. I use your dictionary approach.
+        stockGainersMarketDict = {}
+        i = 0
+        while (i < (len(self.market.initialStocks))):
+            stockToDict = self.market.initialStocks[i]
+            stockGainersMarketDict[stockToDict] = stockToDict.gainsPrevious()
+            i = i+1
+        
+        self.portfolio = sorted(stockGainersMarketDict, reverse=True, key=stockGainersMarketDict.__getitem__)[:5]              
+
+    # Matt: add conditions and code for other stradegies here
+    # Katrin: I added the buying gainers strategy. We do not need a buying losers strategy.
+    else: 
+        print ("Invalid strategy")
+
   def buyStrategy(self):
     return self.buyStrategy
 
@@ -319,6 +322,12 @@ class Investor:
 # In[ ]:
 
 
+
+
+
+# In[ ]:
+
+
 import unittest
 MARKET_NAME = 'marketUnitTest'
 NUM_STOCKS = 20
@@ -339,7 +348,8 @@ class TestMarketClass(unittest.TestCase):
     self.assertEqual(len(self.market.initialStocks), 17)
     
   def test_investor_buy_gains(self):
-    correctSelection = ["A","G","J","O","T"] # The testStocks_BuyGainers.json file has only these gainers
+    correctSelection = ["A","G","H","J","O"] # The testStocks_BuyGainers.json file has only these gainers
+    # Katrin: I changed this correct selection from ["A","G","J","O","T"] to ["A","G","H","J","O"] because of different buying rule
     marketName = MARKET_NAME + ".buyGainers"
     self.market = Market(marketName, NUM_STOCKS, "testStocks_BuyGainers.json", testMode = "ReadStocksFromFile" )
     
@@ -376,6 +386,18 @@ correctSelection
 
 
 investor2.description()
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
 
 
 # In[ ]:
