@@ -1,11 +1,9 @@
-#!/usr/bin/env python
-# coding: utf-8
-
+# To add a new cell, type '# %%'
+# To add a new markdown cell, type '# %% [markdown]'
+# %% [markdown]
 # <a href="https://colab.research.google.com/github/mattronome52/Disposed2BOverconfident/blob/master/Disposed2BOverconfident.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
 
-# In[ ]:
-
-
+# %%
 from random import choices
 import json
 from json import JSONEncoder
@@ -105,7 +103,7 @@ class Stock(object):
     numberGainsPrevious = 0
     for num in self.priceChangeHistory[:3]:   
     # checking condition 
-    if num >= 0: 
+      if num >= 0: 
         numberGainsPrevious += 1
     
     # numberGainsPrevious = sum(1 for priceChangePrev in self.priceChangeHistory[:3] if priceChangePrev > 0)
@@ -137,9 +135,7 @@ class Stock(object):
       print(f'  price for current period:  {self.priceForTestPeriod(self.marketClass.currentPeriod)}')
 
 
-# In[ ]:
-
-
+# %%
 ## Market Class ##
 import json
 from collections import namedtuple
@@ -231,12 +227,10 @@ class Market(object):
       for stock in self.initialStocks:
         stock.description()
 
-
+# %% [markdown]
 # Currently, the filename for the archived stocks is TestStocks.json, which is in the repo.
 
-# In[ ]:
-
-
+# %%
 from enum import Enum
 import random
 
@@ -315,19 +309,15 @@ class Investor:
       for stock in self.portfolio[:]:
         stock.description()
 
-
+# %% [markdown]
 # ## To verify the Buy Gainers strategy
 # I created the testStocks_BuyGainers.json file that has only five gainers: stocks with names: A,G,J,O,T
 
-# In[ ]:
+# %%
 
 
 
-
-
-# In[ ]:
-
-
+# %%
 import unittest
 MARKET_NAME = 'marketUnitTest'
 NUM_STOCKS = 20
@@ -376,32 +366,22 @@ if __name__ == '__main__':
 
 
 
-# In[ ]:
-
-
+# %%
 correctSelection
 
 
-# In[ ]:
-
-
+# %%
 investor2.description()
 
 
-# In[ ]:
+# %%
 
 
 
-
-
-# In[ ]:
-
+# %%
 
 
 
-
-# In[ ]:
-
-
+# %%
 
 
