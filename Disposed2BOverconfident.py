@@ -4,6 +4,7 @@
 # <a href="https://colab.research.google.com/github/mattronome52/Disposed2BOverconfident/blob/master/Disposed2BOverconfident.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
 
 # %%
+
 from random import choices
 import json
 from json import JSONEncoder
@@ -56,11 +57,14 @@ PRICE_CHANGE_WEIGHTS_BAD = [0.3, 0.3, 0.2, 0.2]
 INITIAL_PRICE = 10
 
 class Stock(object):
-  def __init__(self, name, initialPrice = None, quality = None, priceChangeHistory = None, testing = False):
+  def __init__(self, name, periodGenerated, initialPrice = None, quality = None, priceChangeHistory = None, testing = False):
     self.name = name
     self.initialPrice = initialPrice
     self.quality = quality
     self.priceChangeHistory = priceChangeHistory
+    # I want to store in which period the stock was generated and in which period it was sold
+    self.periodGenerated = periodGenerated
+    self.periodSold = None
 
   def __createPriceChangeHistory(self):
     global QUALITIES, QUALITY_WEIGHTS, PRICE_CHANGE_WEIGHTS_GOOD, PRICE_CHANGE_WEIGHTS_BAD, PRICE_CHANGES
@@ -88,6 +92,12 @@ class Stock(object):
   def initialPrice(self):
     return self.initialPrice
 
+  def periodGenerated(self):
+    return self.periodGenerated
+
+  def periodSold(self):
+    return self.periodSold
+
   def priceForTestPeriod(self, periodNum):
     # get rid of the first three entries in the priceChangeHistory--they occurred before test begins
     priceChangeHistoryForTest = self.priceChangeHistory[3:]
@@ -105,9 +115,13 @@ class Stock(object):
     # checking condition 
       if num >= 0: 
         numberGainsPrevious += 1
-    
-    # numberGainsPrevious = sum(1 for priceChangePrev in self.priceChangeHistory[:3] if priceChangePrev > 0)
     return numberGainsPrevious
+
+  def valueStatusStock(self):
+    # Calculates the sum of price changes of the stock
+    # needs to be adjusted to the period the stock is in
+    sumPreviousPriceChanges = sum(self.priceChangeHistory[2:])
+    return sumPreviousPriceChanges
 
   def toJSONString(self):
     return json.dumps(self, default=convertObjectToDict, sort_keys=True)
@@ -146,7 +160,7 @@ TEST_WRITE_STOCKS_TO_FILE = "WriteStocksToFile"
 class Market(object):
   STOCK_NAMES = ["A", "B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","W","Z"]
   MAX_NUM_STOCKS = len(STOCK_NAMES)
-  currentPeriod = 0
+  currentPeriod = 1
   outputTestStockFilename = 'TestStocks.json'
 
   def __init__(self, name, numStocks = 20, inputTestStockFilename = None, testMode = None):
@@ -169,7 +183,7 @@ class Market(object):
     i = 0
     stocks = []
     while (i < numStocks):
-      newStock = Stock(self.STOCK_NAMES[i])
+      newStock = Stock(self.STOCK_NAMES[i], self.currentPeriod)
       newStock.initializeRandom()
       stocks.append(newStock)
       i = i+1
@@ -248,6 +262,9 @@ class Investor:
     self.name = name
     self.market = market
     self.portfolio = []
+    # I want to have a list with stocks that were in the investor's portfolio but were sold at some point
+    self.soldStocks = []
+
 
     if (buyStrategy in BuyStrategy.__members__):
       self.buyStrategy  = buyStrategy
@@ -268,6 +285,9 @@ class Investor:
   def portfolio(self):
     return self.portfolio
 
+  def soldStocks(self):
+    return self.soldStocks
+
   def addStockToPortfolio(self, stock):
     self.portfolio.append(stock)
     
@@ -285,12 +305,75 @@ class Investor:
             stockGainersMarketDict[stockToDict] = stockToDict.gainsPrevious()
             i = i+1
         
-        self.portfolio = sorted(stockGainersMarketDict, reverse=True, key=stockGainersMarketDict.__getitem__)[:5]              
-
+        self.portfolio = sorted(stockGainersMarketDict, reverse=True, key=stockGainersMarketDict.__getitem__)[:numStocks]              
     # Matt: add conditions and code for other stradegies here
     # Katrin: I added the buying gainers strategy. We do not need a buying losers strategy.
     else: 
         print ("Invalid strategy")
+
+
+# Buying stock following the initial period (buy one stocks)
+  def createPeriodPortfolioWithNumStocks(self, numStocks):
+    if (self.buyStrategy is BuyStrategy.RANDOM.name):
+      self.portfolio.append(random.sample(self.market.initialStocks, numStocks))
+    elif (self.buyStrategy is BuyStrategy.BUY_GAINERS.name):
+        stockGainersMarketDict = {}
+        i = 0
+        while (i < (len(self.market.initialStocks))):
+            stockToDict = self.market.initialStocks[i]
+            stockGainersMarketDict[stockToDict] = stockToDict.gainsPrevious()
+            i = i+1
+        
+        self.portfolio.append(sorted(stockGainersMarketDict, reverse=True, key=stockGainersMarketDict.__getitem__)[:numStocks])
+
+    else: 
+        print ("Invalid buying strategy")
+
+
+# Selling strategies
+# Remove stock from investor portfolio, add the selling period as info, and append it to the "sold stocks list" in order to keep track of the sold stocks
+  def sellStocks(self, numStocks):
+    if (self.sellStrategy is SellStrategy.RANDOM.name):
+      randomStockFromPortfolio = random.choice(self.portfolio)
+      randomStockFromPortfolio.periodSold = self.market.currentPeriod
+      self.portfolio.remove(randomStockFromPortfolio)
+      self.soldStocks.append(randomStockFromPortfolio)
+
+# I create a copy of the portfolio with only the gainers or only the losers and then choose one stock randomly
+    elif (self.sellStrategy is SellStrategy.SELL_GAINERS.name):
+      gainersPortfolioDict = self.portfolio
+      for currentStock in gainersPortfolioDict:
+        if currentStock.valueStatusStock() <= 0:
+          gainersPortfolioDict.remove(currentStock)
+      if len(gainersPortfolioDict) > 0:
+        pickGainerStockFromPortfolio = random.choice(gainersPortfolioDict)
+        pickGainerStockFromPortfolio.periodSold = self.market.currentPeriod
+        self.portfolio.remove(pickGainerStockFromPortfolio)
+        self.soldStocks.append(pickGainerStockFromPortfolio)
+      else:
+        randomStockFromPortfolio = random.choice(self.portfolio)
+        randomStockFromPortfolio.periodSold = self.market.currentPeriod
+        self.portfolio.remove(randomStockFromPortfolio)
+        self.soldStocks.append(randomStockFromPortfolio)
+
+    elif (self.sellStrategy is SellStrategy.SELL_LOSERS.name):
+      losersPortfolioDict = self.portfolio
+      for currentStock in losersPortfolioDict:
+        if currentStock.valueStatusStock() >= 0:
+          losersPortfolioDict.remove(currentStock)
+      if len(losersPortfolioDict) > 0:
+        pickLoserStockFromPortfolio = random.choice(losersPortfolioDict)
+        pickLoserStockFromPortfolio.periodSold = self.market.currentPeriod
+        self.portfolio.remove(pickLoserStockFromPortfolio)
+        self.soldStocks.append(pickLoserStockFromPortfolio)
+      else:
+        randomStockFromPortfolio = random.choice(self.portfolio)
+        randomStockFromPortfolio.periodSold = self.market.currentPeriod
+        self.portfolio.remove(randomStockFromPortfolio)
+        self.soldStocks.append(randomStockFromPortfolio)
+    
+    else:
+      print ("Invalid selling strategy")
 
   def buyStrategy(self):
     return self.buyStrategy
@@ -314,15 +397,12 @@ class Investor:
 # I created the testStocks_BuyGainers.json file that has only five gainers: stocks with names: A,G,J,O,T
 
 # %%
-
-
-
-# %%
 import unittest
 MARKET_NAME = 'marketUnitTest'
 NUM_STOCKS = 20
 
 class TestMarketClass(unittest.TestCase):
+# Katrin: I added information "periodGenerated" to the json files
     
   def test_market_basic(self):
     marketName = MARKET_NAME + ".basic"
@@ -365,7 +445,6 @@ if __name__ == '__main__':
     unittest.main(argv=['first-arg-is-ignored'], exit=False)
 
 
-
 # %%
 correctSelection
 
@@ -375,11 +454,36 @@ investor2.description()
 
 
 # %%
+# Main: Simulation Experiment
 
+# Generate the market
+def market_experiment():
+  marketName = "market1"
+  NUM_INVESTORS = 30
+  NUM_PERIODS = 7
+  CURRENT_PERIOD = 1
+  SELL_STRATEGY = 'SELL_GAINERS'
+  BUY_STRATEGY = 'BUY_GAINERS'
+  experimentMarket = Market(marketName, NUM_PERIODS)
+  
+  # Generate the investors and initial portfolio
+  i = 0
+  marketInvestors = []
+  while (i < NUM_INVESTORS):
+    newInvestor = Investor("investor" + str(i), experimentMarket, BUY_STRATEGY, SELL_STRATEGY)
+    newInvestor.createInitialPortfolioWithNumStocks(5)
+    marketInvestors.append(newInvestor)
+    i = i + 1
 
+  # Revise portfolio each period
+  while (CURRENT_PERIOD <= NUM_PERIODS):
+    experimentMarket.__generateStocks(4)
+    for currentInvestor in marketInvestors:
+      currentInvestor.sellStocks(1)
+      currentInvestor.createPeriodPortfolioWithNumStocks(1)
+    CURRENT_PERIOD = CURRENT_PERIOD + 1
 
-# %%
-
+  #To do: Print portfolio (and value) for each investor
 
 
 # %%
