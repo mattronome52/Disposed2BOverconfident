@@ -188,6 +188,10 @@ class Market(object):
       stocks.append(newStock)
       i = i+1
     return stocks
+  
+  # Katrin: This is the public method that I use from outside the market class
+  def updateStocks(self, numStocks):
+    self.initialStocks = self.__generateStocks(numStocks)
 
   def __writeStocksJSONToFile(self):
     testFileName = self.testStockFilename
@@ -324,7 +328,9 @@ class Investor:
             stockGainersMarketDict[stockToDict] = stockToDict.gainsPrevious()
             i = i+1
         
-        self.portfolio.append(sorted(stockGainersMarketDict, reverse=True, key=stockGainersMarketDict.__getitem__)[:numStocks])
+        tempPortfolio = sorted(stockGainersMarketDict, reverse=True, key=stockGainersMarketDict.__getitem__)[:numStocks]
+        for thisStock in tempPortfolio:
+          self.portfolio.append(thisStock)
 
     else: 
         print ("Invalid buying strategy")
@@ -341,7 +347,7 @@ class Investor:
 
 # I create a copy of the portfolio with only the gainers or only the losers and then choose one stock randomly
     elif (self.sellStrategy is SellStrategy.SELL_GAINERS.name):
-      gainersPortfolioDict = self.portfolio
+      gainersPortfolioDict = self.portfolio.copy()
       for currentStock in gainersPortfolioDict:
         if currentStock.valueStatusStock() <= 0:
           gainersPortfolioDict.remove(currentStock)
@@ -357,7 +363,7 @@ class Investor:
         self.soldStocks.append(randomStockFromPortfolio)
 
     elif (self.sellStrategy is SellStrategy.SELL_LOSERS.name):
-      losersPortfolioDict = self.portfolio
+      losersPortfolioDict = self.portfolio.copy()
       for currentStock in losersPortfolioDict:
         if currentStock.valueStatusStock() >= 0:
           losersPortfolioDict.remove(currentStock)
@@ -446,11 +452,11 @@ if __name__ == '__main__':
 
 
 # %%
-correctSelection
+#correctSelection
 
 
 # %%
-investor2.description()
+#investor2.description()
 
 
 # %%
@@ -459,7 +465,7 @@ investor2.description()
 # Generate the market
 def market_experiment():
   marketName = "market1"
-  NUM_INVESTORS = 30
+  NUM_INVESTORS = 20
   NUM_PERIODS = 7
   CURRENT_PERIOD = 1
   SELL_STRATEGY = 'SELL_GAINERS'
@@ -477,13 +483,17 @@ def market_experiment():
 
   # Revise portfolio each period
   while (CURRENT_PERIOD <= NUM_PERIODS):
-    experimentMarket.__generateStocks(4)
+
+    experimentMarket.updateStocks(4)
     for currentInvestor in marketInvestors:
       currentInvestor.sellStocks(1)
       currentInvestor.createPeriodPortfolioWithNumStocks(1)
     CURRENT_PERIOD = CURRENT_PERIOD + 1
 
-  #To do: Print portfolio (and value) for each investor
+  for currentInvestor in marketInvestors:
+    print (f'{currentInvestor.description()}')
+  
+market_experiment()
 
 
 # %%
