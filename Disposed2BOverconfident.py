@@ -8,6 +8,9 @@
 from random import choices
 import json
 from json import JSONEncoder
+from copy import copy, deepcopy
+
+CSV_DELIMITER = ";"
 
 """
 A function takes in a custom object and returns a dictionary representation of the object.
@@ -57,14 +60,38 @@ PRICE_CHANGE_WEIGHTS_BAD = [0.3, 0.3, 0.2, 0.2]
 INITIAL_PRICE = 10
 
 class Stock(object):
-  def __init__(self, name, periodGenerated, initialPrice = None, quality = None, priceChangeHistory = None, testing = False):
+  def __init__(self, name, periodGenerated, initialPrice = None, quality = None, priceChangeHistory = None, testing = False, periodSold = None):
     self.name = name
     self.initialPrice = initialPrice
     self.quality = quality
     self.priceChangeHistory = priceChangeHistory
-    # I want to store in which period the stock was generated and in which period it was sold
     self.periodGenerated = periodGenerated
-    self.periodSold = None
+    self.periodSold = periodSold
+    self.testing = testing
+
+  """
+  implement copy and deepcopy on the Stock class to assign stocks from the market by value (as independent copies) 
+  to investors during experiment periods.
+  """
+  __slots__ = 'a', '__dict__'
+  def __copy__(self):
+      return type(self)(self.name, self.periodGenerated, self.initialPrice, self.quality, self.priceChangeHistory, self.testing, self.periodSold)
+  def __deepcopy__(self, memo): # memo is a dict of id's to copies
+      id_self = id(self)        # memoization avoids unnecesary recursion
+      _copy = memo.get(id_self)
+      if _copy is None:
+          _copy = type(self)(
+              deepcopy(self.name, memo), 
+              deepcopy(self.periodGenerated, memo),
+              deepcopy(self.initialPrice, memo),
+              deepcopy(self.quality, memo),
+              deepcopy(self.priceChangeHistory, memo),
+              deepcopy(self.testing, memo),
+              deepcopy(self.periodSold, memo))
+          memo[id_self] = _copy 
+      return _copy
+
+
 
   def __createPriceChangeHistory(self):
     global QUALITIES, QUALITY_WEIGHTS, PRICE_CHANGE_WEIGHTS_GOOD, PRICE_CHANGE_WEIGHTS_BAD, PRICE_CHANGES
@@ -98,6 +125,15 @@ class Stock(object):
   def periodSold(self):
     return self.periodSold
 
+  def quality(self):
+    return self.quality
+  
+  def priceChangeHistory(self):
+    return self.priceChangeHistory
+
+  def testing(self):
+    return self.testing
+
   def priceForTestPeriod(self, periodNum):
     # get rid of the first three entries in the priceChangeHistory--they occurred before test begins
     priceChangeHistoryForTest = self.priceChangeHistory[3:]
@@ -117,10 +153,10 @@ class Stock(object):
         numberGainsPrevious += 1
     return numberGainsPrevious
 
-  def valueStatusStock(self):
+  def totalPriceChangeInPeriod(self, period):
     # Calculates the sum of price changes of the stock
-    # needs to be adjusted to the period the stock is in
-    sumPreviousPriceChanges = sum(self.priceChangeHistory[2:])
+    periodsToSum = 12 - self.periodGenerated - (7 - period)
+    sumPreviousPriceChanges = sum(self.priceChangeHistory[3:periodsToSum])
     return sumPreviousPriceChanges
 
   def toJSONString(self):
@@ -135,8 +171,24 @@ class Stock(object):
     print(f'  quality:              {self.quality}')
     print(f'  initial price:        {self.initialPrice}')
     print(f'  price change history: {self.priceChangeHistory}')
+    print(f'  period generated:     {self.periodGenerated}')
+    print(f'  period sold:          {self.periodSold}')
+    #print(f'  number gains previous:{self.numberGainsPrevious()}')
+    #print(f'  sum price changes:    {self.sumPreviousPriceChanges()}')
 
-    return
+  @classmethod
+  def headerCSV(self):
+    csvHeader = "stockName" + CSV_DELIMITER + "stockQuality" + CSV_DELIMITER + "stockInitialPrice" + CSV_DELIMITER + "stockPriceChangeHistory" + CSV_DELIMITER + "stockPeriodGenerated" + CSV_DELIMITER + "stockPeriodSold" + CSV_DELIMITER + "stockGainsPrevious" + CSV_DELIMITER + "stockTotalPriceChange"
+    return csvHeader
+
+  def descriptionCSV(self):
+    priceChangeHistoryString = ', '.join(map(str, self.priceChangeHistory))
+    descCSV = self.name + CSV_DELIMITER + self.quality + CSV_DELIMITER + str(self.initialPrice) + CSV_DELIMITER + priceChangeHistoryString + CSV_DELIMITER + str(self.periodGenerated) + CSV_DELIMITER + str(self.periodSold) + CSV_DELIMITER + str(self.gainsPrevious()) + CSV_DELIMITER + str(self.totalPriceChangeInPeriod(7))
+    return descCSV
+
+    
+
+    '''
     # Can be used when integrated with Market class
     if (Market.currentPeriod == 0):
       print(f'  price for current period:  {self.initialPrice}')
@@ -147,6 +199,7 @@ class Stock(object):
       print(f'  price for current period:  {self.initialPrice}')
     else:
       print(f'  price for current period:  {self.priceForTestPeriod(self.marketClass.currentPeriod)}')
+    '''
 
 
 # %%
@@ -244,6 +297,7 @@ class Market(object):
     else:
       for stock in self.initialStocks:
         stock.description()
+      
 
 # %% [markdown]
 # Currently, the filename for the archived stocks is TestStocks.json, which is in the repo.
@@ -305,7 +359,7 @@ class Investor:
         stockGainersMarketDict = {}
         i = 0
         while (i < (len(self.market.initialStocks))):
-            stockToDict = self.market.initialStocks[i]
+            stockToDict = deepcopy(self.market.initialStocks[i])
             stockGainersMarketDict[stockToDict] = stockToDict.gainsPrevious()
             i = i+1
         
@@ -324,7 +378,7 @@ class Investor:
         stockGainersMarketDict = {}
         i = 0
         while (i < (len(self.market.initialStocks))):
-            stockToDict = self.market.initialStocks[i]
+            stockToDict = deepcopy(self.market.initialStocks[i])
             stockGainersMarketDict[stockToDict] = stockToDict.gainsPrevious()
             i = i+1
         
@@ -349,7 +403,7 @@ class Investor:
     elif (self.sellStrategy is SellStrategy.SELL_GAINERS.name):
       gainersPortfolioDict = self.portfolio.copy()
       for currentStock in gainersPortfolioDict:
-        if currentStock.valueStatusStock() <= 0:
+        if currentStock.totalPriceChangeInPeriod(self.market.currentPeriod) <= 0:
           gainersPortfolioDict.remove(currentStock)
       if len(gainersPortfolioDict) > 0:
         pickGainerStockFromPortfolio = random.choice(gainersPortfolioDict)
@@ -365,7 +419,7 @@ class Investor:
     elif (self.sellStrategy is SellStrategy.SELL_LOSERS.name):
       losersPortfolioDict = self.portfolio.copy()
       for currentStock in losersPortfolioDict:
-        if currentStock.valueStatusStock() >= 0:
+        if currentStock.totalPriceChangeInPeriod(self.market.currentPeriod) >= 0:
           losersPortfolioDict.remove(currentStock)
       if len(losersPortfolioDict) > 0:
         pickLoserStockFromPortfolio = random.choice(losersPortfolioDict)
@@ -387,6 +441,44 @@ class Investor:
   def sellStrategy(self):
     return self.sellStrategy
 
+  def numGoodStocksSold(self):
+    numGoodStock = sum(soldStock.quality == 'good' for soldStock in self.soldStocks)
+    return numGoodStock
+
+  def numGoodStocksInitial(self):
+    numGoodStockSoldFromPeriod1 = sum((soldStock.quality == 'good' and soldStock.periodGenerated == 1) for soldStock in self.soldStocks)
+    numGoodStocksInPortfolioFromPeriod1 = sum((stock.quality == 'good' and stock.periodGenerated == 1) for stock in self.portfolio)
+    numGoodStocksInitial = numGoodStockSoldFromPeriod1 + numGoodStocksInPortfolioFromPeriod1
+    return numGoodStocksInitial
+
+  def numGoodStocksEnd(self):
+    numGoodStocksInPortfolio = sum((stock.quality == 'good') for stock in self.portfolio)
+    return numGoodStocksInPortfolio
+
+  def numGoodStocksPicked(self):
+    numGoodStocksPicked = self.numGoodStocksEnd() + self.numGoodStocksSold()
+    return numGoodStocksPicked
+
+  def numGainersSold(self):
+    numGainersSold = sum(soldStock.totalPriceChangeInPeriod(soldStock.periodSold) > 0 for soldStock in self.soldStocks)
+    return numGainersSold
+
+  def numGainersInPortfolio(self):
+    numGainersInPortfolio = sum(stock.totalPriceChangeInPeriod(self.market.currentPeriod) > 0 for stock in self.portfolio)
+    return numGainersInPortfolio
+
+  def totalEarnings(self):
+    earningsFromSold = sum(soldStock.totalPriceChangeInPeriod(soldStock.periodSold) for soldStock in self.soldStocks)
+    earningsInPortfolio = sum(stock.totalPriceChangeInPeriod(self.market.currentPeriod) for stock in self.portfolio)
+    totalEarnings = earningsFromSold + earningsInPortfolio
+    return totalEarnings
+
+  def totalUpticks(self):
+    upticsInSold = sum(sum(priceChange > 0 for priceChange in stock.priceChangeHistory[:(12 - stock.periodGenerated - (7 - stock.periodSold))]) for stock in self.soldStocks)
+    upticsInPortfolio = sum(sum(priceChange > 0 for priceChange in stock.priceChangeHistory[:(12 - stock.periodGenerated - (7 - self.market.currentPeriod))]) for stock in self.portfolio)
+    totalUpticks = upticsInSold + upticsInPortfolio
+    return totalUpticks   
+    
   def description(self):    
     print(f'Investor: {self.name}')
     print(f'  buy strategy:  {self.buyStrategy}')
@@ -397,6 +489,38 @@ class Investor:
     else:
       for stock in self.portfolio[:]:
         stock.description()
+    
+    if (len(self.soldStocks) == 0):
+      print("    No stocks in sold stocks portfolio")
+    else:
+      for stock in self.soldStocks[:]:
+        stock.description()
+
+  @classmethod
+  def headerCSV(self):
+    csvHeader = "investorName" + CSV_DELIMITER + "marketName" + CSV_DELIMITER + "buyStrategy" + CSV_DELIMITER + "sellStrategy" + CSV_DELIMITER + "numGoodStocksInitial" + CSV_DELIMITER + "numGoodStocksSold" + CSV_DELIMITER + "numGoodStocksEnd" + CSV_DELIMITER + "numGoodStocksPicked" + CSV_DELIMITER + "numGainersSold" + CSV_DELIMITER + "numGainersInPortfolio" + CSV_DELIMITER + "totalEarnings" + CSV_DELIMITER + "totalUpticks"
+    return csvHeader
+
+  @classmethod
+  def headerCSVAllStocks(self):
+    return Investor.headerCSV() + CSV_DELIMITER + Stock.headerCSV()
+
+  def descriptionCSV(self):
+    descCSVString = self.name + CSV_DELIMITER + self.market.name + CSV_DELIMITER + self.buyStrategy + CSV_DELIMITER + self.sellStrategy + CSV_DELIMITER + str(self.numGoodStocksInitial()) + CSV_DELIMITER + str(self.numGoodStocksSold()) + CSV_DELIMITER + str(self.numGoodStocksEnd()) + CSV_DELIMITER + str(self.numGoodStocksPicked()) + CSV_DELIMITER + str(self.numGainersSold()) + CSV_DELIMITER + str(self.numGainersInPortfolio()) + CSV_DELIMITER + str(self.totalEarnings()) + CSV_DELIMITER + str(self.totalUpticks())
+    return descCSVString
+    
+  def descriptionCSVAllStocks(self):
+    CSVresult = ""
+    investorDescriptionCSV = self.descriptionCSV()
+    for currentStock in self.portfolio:
+      stockCSV = investorDescriptionCSV + CSV_DELIMITER + currentStock.descriptionCSV() + "\n"
+      CSVresult = CSVresult + stockCSV
+    for currentStock in self.soldStocks:
+      stockCSV = investorDescriptionCSV + CSV_DELIMITER + currentStock.descriptionCSV() + "\n"
+      CSVresult = CSVresult + stockCSV
+
+
+    return CSVresult
 
 # %% [markdown]
 # ## To verify the Buy Gainers strategy
@@ -452,6 +576,10 @@ if __name__ == '__main__':
 
 
 # %%
+# Unittest for selling strategies
+
+
+# %%
 #correctSelection
 
 
@@ -462,38 +590,117 @@ if __name__ == '__main__':
 # %%
 # Main: Simulation Experiment
 
+import datetime
+import os
 # Generate the market
-def market_experiment():
-  marketName = "market1"
-  NUM_INVESTORS = 20
-  NUM_PERIODS = 7
+def market_experiment(experimentId = 'no_experiment_id_set', useSharedMarket = True, buyStrategy = 'BUY_GAINERS', sellStrategy = 'SELL_GAINERS', numInvestors = 20, numPeriods = 7, portfolioSize = 5, newStocksPerPeriod = 4):
+  
+  marketNameBase = "market"
+  NUM_INVESTORS = numInvestors
+  NUM_PERIODS = numPeriods
   CURRENT_PERIOD = 1
-  SELL_STRATEGY = 'SELL_GAINERS'
-  BUY_STRATEGY = 'BUY_GAINERS'
-  experimentMarket = Market(marketName, NUM_PERIODS)
+  PORTFOLIO_SIZE = portfolioSize
+  NEW_STOCKS_PER_PERIOD = newStocksPerPeriod
+
+  # validate buy and sell strategies
+  if (buyStrategy in BuyStrategy.__members__):
+    BUY_STRATEGY  = buyStrategy
+  else:
+    print(f'{buyStrategy} is not a valid buying strategy')
+    return
+  
+  if (sellStrategy in SellStrategy.__members__):
+    SELL_STRATEGY  = sellStrategy
+  else:
+    print(f'{sellStrategy} is not a valid selling strategy')
+    return
+
+  # if all investors are supposed to share a market, create only one global market
+  if(useSharedMarket == True):
+    globalMarket = Market(marketNameBase + '_global', NUM_PERIODS)
   
   # Generate the investors and initial portfolio
-  i = 0
   marketInvestors = []
+  i = 0
   while (i < NUM_INVESTORS):
-    newInvestor = Investor("investor" + str(i), experimentMarket, BUY_STRATEGY, SELL_STRATEGY)
-    newInvestor.createInitialPortfolioWithNumStocks(5)
+    # if investors get individual market, create one for each investor, otherwise assign global market
+    if(useSharedMarket == False):
+      investorMarket = Market(marketNameBase + '_' + str(i), NUM_PERIODS)
+      newInvestor = Investor("investor" + str(i), investorMarket, BUY_STRATEGY, SELL_STRATEGY)
+    else:
+      newInvestor = Investor("investor" + str(i), globalMarket, BUY_STRATEGY, SELL_STRATEGY)
+    
+    newInvestor.createInitialPortfolioWithNumStocks(PORTFOLIO_SIZE)
     marketInvestors.append(newInvestor)
     i = i + 1
 
   # Revise portfolio each period
   while (CURRENT_PERIOD <= NUM_PERIODS):
-
-    experimentMarket.updateStocks(4)
+    
+    # in each period: generate new stocks and perform buy / sell operations
+    if(useSharedMarket == True):
+      globalMarket.updateStocks(NEW_STOCKS_PER_PERIOD)
     for currentInvestor in marketInvestors:
+      if(useSharedMarket == False):
+        currentInvestor.market.updateStocks(NEW_STOCKS_PER_PERIOD)
       currentInvestor.sellStocks(1)
       currentInvestor.createPeriodPortfolioWithNumStocks(1)
-    CURRENT_PERIOD = CURRENT_PERIOD + 1
 
-  for currentInvestor in marketInvestors:
-    print (f'{currentInvestor.description()}')
+    # set market period to next period (both global ind individual markets)
+    CURRENT_PERIOD = CURRENT_PERIOD + 1
+    if(useSharedMarket == True):
+      globalMarket.currentPeriod = CURRENT_PERIOD
+    else:
+      for currentInvestor in marketInvestors:
+        currentInvestor.market.currentPeriod = CURRENT_PERIOD
+
+  # print all investors into verbose output (uncomment to see in terminal)
+  # for currentInvestor in marketInvestors:   
+  #  currentInvestor.description()
   
-market_experiment()
+  # create file names and correct path
+  currentTimeString = datetime.datetime.now().strftime("%y%m%d_%H%M")
+  scriptDir = os.path.dirname(__file__)
+  fileNameInvestors = currentTimeString + "_" + experimentId + "_investors.csv"
+  completePathInvestors = os.path.join(scriptDir, 'results', fileNameInvestors)
+  fileNameStocks = currentTimeString + "_" + experimentId + "_stocks.csv"
+  completePathStocks = os.path.join(scriptDir, 'results', fileNameStocks)
+  
+  # write to file (create if not found, overwrite otherwise)
+  # write investor summary file
+  resultFile = open(completePathInvestors,"w") 
+  resultFile.write(Investor.headerCSV() + "\n")
+  for currentInvestor in marketInvestors: 
+    resultFile.write(currentInvestor.descriptionCSV() + "\n")
+  resultFile.close() 
+
+  # write file with complete stock output
+  resultFile = open(completePathStocks,"w") 
+  resultFile.write(Investor.headerCSVAllStocks() + "\n")
+  for currentInvestor in marketInvestors: 
+    resultFile.write(currentInvestor.descriptionCSVAllStocks() + "\n")
+  resultFile.close() 
+
+  # to-do
+  # overall cleanup and comments
+  # add unit tests with sample data for sell strategy and final calculations
+  
+# run the actual thing
+''' 
+signature: 
+  market_experiment(
+  experimentId = 'no_experiment_id_set', 
+  useSharedMarket = True, 
+  buyStrategy = 'BUY_GAINERS', 
+  sellStrategy = 'SELL_GAINERS', 
+  numInvestors = 20, 
+  numPeriods = 7, 
+  portfolioSize = 5, 
+  newStocksPerPeriod = 4)
+'''
+
+market_experiment("shared_market_test",True)
+market_experiment("individual_markets_test",False)
 
 
 # %%
