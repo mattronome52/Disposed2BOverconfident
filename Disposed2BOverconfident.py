@@ -373,7 +373,9 @@ class Investor:
 # Buying stock following the initial period (buy one stocks)
   def createPeriodPortfolioWithNumStocks(self, numStocks):
     if (self.buyStrategy is BuyStrategy.RANDOM.name):
-      self.portfolio.append(random.sample(self.market.initialStocks, numStocks))
+      tempPortfolio = random.sample(self.market.initialStocks, numStocks)
+      for thisStock in tempPortfolio:
+        self.portfolio.append(thisStock)
     elif (self.buyStrategy is BuyStrategy.BUY_GAINERS.name):
         stockGainersMarketDict = {}
         i = 0
@@ -699,8 +701,11 @@ signature:
   newStocksPerPeriod = 4)
 '''
 
-market_experiment("shared_market_test",True)
-market_experiment("individual_markets_test",False)
+#market_experiment("shared_market_test",True)
+#market_experiment("individual_markets_test",False)
+#market_experiment("individual_markets-losers_test",False,'BUY_GAINERS','SELL_LOSERS')
+market_experiment("individual_markets-rand-gainers_test",False,'RANDOM','SELL_GAINERS')
+market_experiment("individual_markets-rand-losers_test",False,'RANDOM','SELL_LOSERS')
 
 
 # %%
