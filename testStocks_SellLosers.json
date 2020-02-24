@@ -1,0 +1,5 @@
+[{"__class__": "Stock", "__module__": "__main__", "initialPrice": 10, "name": "B", "periodGenerated": 1, "priceChangeHistory": [-1, -1, -3, 5, 1, -3, 5, 5, -1, 5], "quality": "bad"}, 
+{"__class__": "Stock", "__module__": "__main__", "initialPrice": 10, "name": "I", "periodGenerated": 1, "priceChangeHistory": [-5, -3, -3, 1, -3, -1, 5, 5, -1, -1], "quality": "bad"},
+{"__class__": "Stock", "__module__": "__main__", "initialPrice": 10, "name": "M", "periodGenerated": 1, "priceChangeHistory": [-1, -3, -3, -1, 1, 5, -1, 1, -1, 3], "quality": "bad"}, 
+{"__class__": "Stock", "__module__": "__main__", "initialPrice": 10, "name": "P", "periodGenerated": 1, "priceChangeHistory": [3, -1, -3, -3, -3, 1, 5, 3, -1, 5], "quality": "bad"}, 
+{"__class__": "Stock", "__module__": "__main__", "initialPrice": 10, "name": "R", "periodGenerated": 1, "priceChangeHistory": [-1, -3, -1, -3, -1, -3, -3, -3, -3, -1], "quality": "bad"}]

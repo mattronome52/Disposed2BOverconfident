@@ -91,8 +91,6 @@ class Stock(object):
           memo[id_self] = _copy 
       return _copy
 
-
-
   def __createPriceChangeHistory(self):
     global QUALITIES, QUALITY_WEIGHTS, PRICE_CHANGE_WEIGHTS_GOOD, PRICE_CHANGE_WEIGHTS_BAD, PRICE_CHANGES
     generatedPriceChangeHistory = []
@@ -155,7 +153,10 @@ class Stock(object):
 
   def totalPriceChangeInPeriod(self, period):
     # Calculates the sum of price changes of the stock
-    periodsToSum = 12 - self.periodGenerated - (7 - period)
+    lastPeriod = period
+    if(self.periodSold != None):
+      lastPeriod = min(self.periodSold, period)
+    periodsToSum = 11 - self.periodGenerated - (7 - lastPeriod)
     sumPreviousPriceChanges = sum(self.priceChangeHistory[3:periodsToSum])
     return sumPreviousPriceChanges
 
@@ -185,8 +186,6 @@ class Stock(object):
     priceChangeHistoryString = ', '.join(map(str, self.priceChangeHistory))
     descCSV = self.name + CSV_DELIMITER + self.quality + CSV_DELIMITER + str(self.initialPrice) + CSV_DELIMITER + priceChangeHistoryString + CSV_DELIMITER + str(self.periodGenerated) + CSV_DELIMITER + str(self.periodSold) + CSV_DELIMITER + str(self.gainsPrevious()) + CSV_DELIMITER + str(self.totalPriceChangeInPeriod(7))
     return descCSV
-
-    
 
     '''
     # Can be used when integrated with Market class
@@ -349,25 +348,28 @@ class Investor:
   def addStockToPortfolio(self, stock):
     self.portfolio.append(stock)
     
-  def createInitialPortfolioWithNumStocks(self, numStocks):
+  def createInitialPortfolioWithNumStocks(self, numStocks, testing = False, inputTestStockFilename = None):
     # need to test numStocks is within bounds
     # Matt: for now, just implementing random strategy
-    if (self.buyStrategy is BuyStrategy.RANDOM.name):
-      self.portfolio = random.sample(self.market.initialStocks, numStocks)
-    elif (self.buyStrategy is BuyStrategy.BUY_GAINERS.name):
-        # Katrin: I changed the buying strategy in order to avoid dups. I use your dictionary approach.
-        stockGainersMarketDict = {}
-        i = 0
-        while (i < (len(self.market.initialStocks))):
-            stockToDict = deepcopy(self.market.initialStocks[i])
-            stockGainersMarketDict[stockToDict] = stockToDict.gainsPrevious()
-            i = i+1
-        
-        self.portfolio = sorted(stockGainersMarketDict, reverse=True, key=stockGainersMarketDict.__getitem__)[:numStocks]              
-    # Matt: add conditions and code for other stradegies here
-    # Katrin: I added the buying gainers strategy. We do not need a buying losers strategy.
-    else: 
-        print ("Invalid strategy")
+    if (testing == True):
+      self.portfolio = self.market.readStocksJSONFromFile(inputTestStockFilename)
+    else:
+      if (self.buyStrategy is BuyStrategy.RANDOM.name):
+        self.portfolio = random.sample(self.market.initialStocks, numStocks)
+      elif (self.buyStrategy is BuyStrategy.BUY_GAINERS.name):
+          # Katrin: I changed the buying strategy in order to avoid dups. I use your dictionary approach.
+          stockGainersMarketDict = {}
+          i = 0
+          while (i < (len(self.market.initialStocks))):
+              stockToDict = deepcopy(self.market.initialStocks[i])
+              stockGainersMarketDict[stockToDict] = stockToDict.gainsPrevious()
+              i = i+1
+          
+          self.portfolio = sorted(stockGainersMarketDict, reverse=True, key=stockGainersMarketDict.__getitem__)[:numStocks]              
+      # Matt: add conditions and code for other stradegies here
+      # Katrin: I added the buying gainers strategy. We do not need a buying losers strategy.
+      else: 
+          print ("Invalid strategy")
 
 
 # Buying stock following the initial period (buy one stocks)
@@ -391,7 +393,6 @@ class Investor:
     else: 
         print ("Invalid buying strategy")
 
-
 # Selling strategies
 # Remove stock from investor portfolio, add the selling period as info, and append it to the "sold stocks list" in order to keep track of the sold stocks
   def sellStocks(self, numStocks):
@@ -404,7 +405,7 @@ class Investor:
 # I create a copy of the portfolio with only the gainers or only the losers and then choose one stock randomly
     elif (self.sellStrategy is SellStrategy.SELL_GAINERS.name):
       gainersPortfolioDict = self.portfolio.copy()
-      for currentStock in gainersPortfolioDict:
+      for currentStock in self.portfolio:
         if currentStock.totalPriceChangeInPeriod(self.market.currentPeriod) <= 0:
           gainersPortfolioDict.remove(currentStock)
       if len(gainersPortfolioDict) > 0:
@@ -420,7 +421,7 @@ class Investor:
 
     elif (self.sellStrategy is SellStrategy.SELL_LOSERS.name):
       losersPortfolioDict = self.portfolio.copy()
-      for currentStock in losersPortfolioDict:
+      for currentStock in self.portfolio:
         if currentStock.totalPriceChangeInPeriod(self.market.currentPeriod) >= 0:
           losersPortfolioDict.remove(currentStock)
       if len(losersPortfolioDict) > 0:
@@ -476,8 +477,8 @@ class Investor:
     return totalEarnings
 
   def totalUpticks(self):
-    upticsInSold = sum(sum(priceChange > 0 for priceChange in stock.priceChangeHistory[:(12 - stock.periodGenerated - (7 - stock.periodSold))]) for stock in self.soldStocks)
-    upticsInPortfolio = sum(sum(priceChange > 0 for priceChange in stock.priceChangeHistory[:(12 - stock.periodGenerated - (7 - self.market.currentPeriod))]) for stock in self.portfolio)
+    upticsInSold = sum(sum(priceChange > 0 for priceChange in stock.priceChangeHistory[:(11 - stock.periodGenerated - (7 - stock.periodSold))]) for stock in self.soldStocks)
+    upticsInPortfolio = sum(sum(priceChange > 0 for priceChange in stock.priceChangeHistory[:(11 - stock.periodGenerated - (7 - self.market.currentPeriod))]) for stock in self.portfolio)
     totalUpticks = upticsInSold + upticsInPortfolio
     return totalUpticks   
     
@@ -572,21 +573,77 @@ class TestMarketClass(unittest.TestCase):
 
     self.assertEqual(gainersPortfolio, correctSelection)
 
-
-if __name__ == '__main__':
-    unittest.main(argv=['first-arg-is-ignored'], exit=False)
-
+# %% [markdown]
+# To verify the Sell Gainers and Sell Losers strategy
 
 # %%
 # Unittest for selling strategies
 
+# Testing sell gainer strategy
+
+class TestInvestorClass(unittest.TestCase):
+
+    def test_investor_sell_gains(self):
+        correctSelection_SG = ["I", "M", "P", "R"] # The testStocks_SellGainers.json file has only one gainer ("B")
+
+        marketName = "Market.sellGainers"
+        self.market = Market(marketName, 20, "testStocks_SellGainers.json", testMode = "ReadStocksFromFile")
+        
+        # test sell gainers strategy
+        sellGainerInvestor = Investor("investor1", self.market, 'BUY_GAINERS', 'SELL_GAINERS')
+        sellGainerInvestor.createInitialPortfolioWithNumStocks(5, testing = True, inputTestStockFilename = "testStocks_SellGainers.json")
+        
+        self.market.currentPeriod = 6
+
+        sellGainerInvestor.sellStocks(1)
+        
+        sellGainerPortfolio = []
+        for stock in sellGainerInvestor.portfolio:
+            sellGainerPortfolio.append(stock.name)
+
+        sellGainerPortfolio.sort()
+        correctSelection_SG.sort()
+        
+        print (f'sellGainerPortfolio: {sellGainerPortfolio}')
+        print (f'correctSelection_SG: {correctSelection_SG}')
+
+        self.assertEqual(sellGainerPortfolio, correctSelection_SG)
+
+
+# Testing sell loser strategy
+
+    def test_investor_sell_losers(self):
+        correctSelection_SL = ["B", "I", "M", "P"] # The testStocks_SellLosers.json file has only one loser ("R")
+
+        marketName = "Market.sellLosers"
+        self.market = Market(marketName, 20, "testStocks_SellLosers.json", testMode = "ReadStocksFromFile")
+        
+        # test sell losers strategy
+        sellLoserInvestor = Investor("investor2", self.market, 'BUY_GAINERS', 'SELL_LOSERS')
+        sellLoserInvestor.createInitialPortfolioWithNumStocks(5, testing = True, inputTestStockFilename = "testStocks_SellLosers.json")
+
+        self.market.currentPeriod = 6
+
+        sellLoserInvestor.sellStocks(1)
+        
+        sellLoserPortfolio = []
+        for stock in sellLoserInvestor.portfolio:
+            sellLoserPortfolio.append(stock.name)
+
+        sellLoserPortfolio.sort()
+        correctSelection_SL.sort()
+        
+        print (f'sellLoserPortfolio: {sellLoserPortfolio}')
+        print (f'correctSelection_SL: {correctSelection_SL}')
+
+        self.assertEqual(sellLoserPortfolio, correctSelection_SL)
+
 
 # %%
-#correctSelection
+# Run unit tests
 
-
-# %%
-#investor2.description()
+if __name__ == '__main__':
+   unittest.main(argv=['first-arg-is-ignored'], exit=False)
 
 
 # %%
@@ -637,7 +694,15 @@ def market_experiment(experimentId = 'no_experiment_id_set', useSharedMarket = T
     i = i + 1
 
   # Revise portfolio each period
-  while (CURRENT_PERIOD <= NUM_PERIODS):
+  while (CURRENT_PERIOD < NUM_PERIODS):
+    
+    # set market period to next period (both global ind individual markets)
+    CURRENT_PERIOD = CURRENT_PERIOD + 1
+    if(useSharedMarket == True):
+      globalMarket.currentPeriod = CURRENT_PERIOD
+    else:
+      for currentInvestor in marketInvestors:
+        currentInvestor.market.currentPeriod = CURRENT_PERIOD
     
     # in each period: generate new stocks and perform buy / sell operations
     if(useSharedMarket == True):
@@ -647,14 +712,6 @@ def market_experiment(experimentId = 'no_experiment_id_set', useSharedMarket = T
         currentInvestor.market.updateStocks(NEW_STOCKS_PER_PERIOD)
       currentInvestor.sellStocks(1)
       currentInvestor.createPeriodPortfolioWithNumStocks(1)
-
-    # set market period to next period (both global ind individual markets)
-    CURRENT_PERIOD = CURRENT_PERIOD + 1
-    if(useSharedMarket == True):
-      globalMarket.currentPeriod = CURRENT_PERIOD
-    else:
-      for currentInvestor in marketInvestors:
-        currentInvestor.market.currentPeriod = CURRENT_PERIOD
 
   # print all investors into verbose output (uncomment to see in terminal)
   # for currentInvestor in marketInvestors:   
@@ -703,9 +760,10 @@ signature:
 
 #market_experiment("shared_market_test",True)
 #market_experiment("individual_markets_test",False)
-#market_experiment("individual_markets-losers_test",False,'BUY_GAINERS','SELL_LOSERS')
-market_experiment("individual_markets-rand-gainers_test",False,'RANDOM','SELL_GAINERS')
-market_experiment("individual_markets-rand-losers_test",False,'RANDOM','SELL_LOSERS')
+market_experiment("individual_markets-gainers_test",False,'BUY_GAINERS','SELL_GAINERS', 60)
+market_experiment("individual_markets-losers_test",False,'BUY_GAINERS','SELL_LOSERS', 60)
+market_experiment("individual_markets-rand-gainers_test",False,'RANDOM','SELL_GAINERS', 60)
+market_experiment("individual_markets-rand-losers_test",False,'RANDOM','SELL_LOSERS', 60)
 
 
 # %%
