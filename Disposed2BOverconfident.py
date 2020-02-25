@@ -155,7 +155,7 @@ class Stock(object):
     # Calculates the sum of price changes of the stock
     lastPeriod = period
     if(self.periodSold != None):
-      lastPeriod = min(self.periodSold, period)
+      lastPeriod = min(self.periodSold -1, period)
     periodsToSum = 11 - self.periodGenerated - (7 - lastPeriod)
     sumPreviousPriceChanges = sum(self.priceChangeHistory[3:periodsToSum])
     return sumPreviousPriceChanges
@@ -174,8 +174,6 @@ class Stock(object):
     print(f'  price change history: {self.priceChangeHistory}')
     print(f'  period generated:     {self.periodGenerated}')
     print(f'  period sold:          {self.periodSold}')
-    #print(f'  number gains previous:{self.numberGainsPrevious()}')
-    #print(f'  sum price changes:    {self.sumPreviousPriceChanges()}')
 
   @classmethod
   def headerCSV(self):
@@ -372,7 +370,7 @@ class Investor:
           print ("Invalid strategy")
 
 
-# Buying stock following the initial period (buy one stocks)
+# Buying stock following the initial period (buy one stock)
   def createPeriodPortfolioWithNumStocks(self, numStocks):
     if (self.buyStrategy is BuyStrategy.RANDOM.name):
       tempPortfolio = random.sample(self.market.initialStocks, numStocks)
@@ -394,7 +392,7 @@ class Investor:
         print ("Invalid buying strategy")
 
 # Selling strategies
-# Remove stock from investor portfolio, add the selling period as info, and append it to the "sold stocks list" in order to keep track of the sold stocks
+# Remove stock from investor portfolio, add the selling period as info, and append it to the "sold stocks" list in order to keep track of the sold stocks
   def sellStocks(self, numStocks):
     if (self.sellStrategy is SellStrategy.RANDOM.name):
       randomStockFromPortfolio = random.choice(self.portfolio)
@@ -463,7 +461,7 @@ class Investor:
     return numGoodStocksPicked
 
   def numGainersSold(self):
-    numGainersSold = sum(soldStock.totalPriceChangeInPeriod(soldStock.periodSold) > 0 for soldStock in self.soldStocks)
+    numGainersSold = sum(soldStock.totalPriceChangeInPeriod(soldStock.periodSold - 1) > 0 for soldStock in self.soldStocks)
     return numGainersSold
 
   def numGainersInPortfolio(self):
@@ -471,13 +469,13 @@ class Investor:
     return numGainersInPortfolio
 
   def totalEarnings(self):
-    earningsFromSold = sum(soldStock.totalPriceChangeInPeriod(soldStock.periodSold) for soldStock in self.soldStocks)
+    earningsFromSold = sum(soldStock.totalPriceChangeInPeriod(soldStock.periodSold - 1) for soldStock in self.soldStocks)
     earningsInPortfolio = sum(stock.totalPriceChangeInPeriod(self.market.currentPeriod) for stock in self.portfolio)
     totalEarnings = earningsFromSold + earningsInPortfolio
     return totalEarnings
 
   def totalUpticks(self):
-    upticsInSold = sum(sum(priceChange > 0 for priceChange in stock.priceChangeHistory[:(11 - stock.periodGenerated - (7 - stock.periodSold))]) for stock in self.soldStocks)
+    upticsInSold = sum(sum(priceChange > 0 for priceChange in stock.priceChangeHistory[:(11 - stock.periodGenerated - (7 - stock.periodSold + 1))]) for stock in self.soldStocks)
     upticsInPortfolio = sum(sum(priceChange > 0 for priceChange in stock.priceChangeHistory[:(11 - stock.periodGenerated - (7 - self.market.currentPeriod))]) for stock in self.portfolio)
     totalUpticks = upticsInSold + upticsInPortfolio
     return totalUpticks   
@@ -527,7 +525,7 @@ class Investor:
 
 # %% [markdown]
 # ## To verify the Buy Gainers strategy
-# I created the testStocks_BuyGainers.json file that has only five gainers: stocks with names: A,G,J,O,T
+# I created the testStocks_BuyGainers.json file that has only five gainers: stocks with names: A,G,H,J,O
 
 # %%
 import unittest
@@ -574,7 +572,7 @@ class TestMarketClass(unittest.TestCase):
     self.assertEqual(gainersPortfolio, correctSelection)
 
 # %% [markdown]
-# To verify the Sell Gainers and Sell Losers strategy
+# Unit tests for selling strategies and calculations
 
 # %%
 # Unittest for selling strategies
@@ -637,6 +635,42 @@ class TestInvestorClass(unittest.TestCase):
         print (f'correctSelection_SL: {correctSelection_SL}')
 
         self.assertEqual(sellLoserPortfolio, correctSelection_SL)
+
+# Testing calculations for result files
+
+    def test_investor_calculations(self):
+        marketName = "Market.CalculationTests"
+        self.market = Market(marketName, 20, "testStocks_SellLosers.json", testMode = "ReadStocksFromFile")
+        
+        calculationsTestInvestor = Investor("investor2", self.market, 'BUY_GAINERS', 'SELL_GAINERS')
+        calculationsTestInvestor.portfolio = self.market.readStocksJSONFromFile('testPortfolio_Calculations.json')
+        calculationsTestInvestor.soldStocks = self.market.readStocksJSONFromFile('testSoldStocks_Calculations.json')
+
+        self.market.currentPeriod = 7
+
+        calculationsTestInvestor.numGoodStocksInitial()
+        self.assertEqual(calculationsTestInvestor.numGoodStocksInitial(), 1)
+
+        calculationsTestInvestor.numGoodStocksSold()
+        self.assertEqual(calculationsTestInvestor.numGoodStocksSold(), 3)
+
+        calculationsTestInvestor.numGoodStocksEnd()
+        self.assertEqual(calculationsTestInvestor.numGoodStocksEnd(), 1)
+
+        calculationsTestInvestor.numGoodStocksPicked()
+        self.assertEqual(calculationsTestInvestor.numGoodStocksPicked(), 4)
+
+        calculationsTestInvestor.numGainersSold()
+        self.assertEqual(calculationsTestInvestor.numGainersSold(), 4)
+
+        calculationsTestInvestor.numGainersInPortfolio()
+        self.assertEqual(calculationsTestInvestor.numGainersInPortfolio(), 2)
+
+        calculationsTestInvestor.totalEarnings()
+        self.assertEqual(calculationsTestInvestor.totalEarnings(), 11)
+
+        calculationsTestInvestor.totalUpticks()
+        self.assertEqual(calculationsTestInvestor.totalUpticks(), 37)
 
 
 # %%
@@ -717,16 +751,15 @@ def market_experiment(experimentId = 'no_experiment_id_set', useSharedMarket = T
   # for currentInvestor in marketInvestors:   
   #  currentInvestor.description()
   
-  # create file names and correct path
+    # create file names and correct path
   currentTimeString = datetime.datetime.now().strftime("%y%m%d_%H%M")
-  scriptDir = os.path.dirname(__file__)
-  fileNameInvestors = currentTimeString + "_" + experimentId + "_investors.csv"
-  completePathInvestors = os.path.join(scriptDir, 'results', fileNameInvestors)
-  fileNameStocks = currentTimeString + "_" + experimentId + "_stocks.csv"
-  completePathStocks = os.path.join(scriptDir, 'results', fileNameStocks)
+  scriptDir = os.path.join(os.path.abspath(''), "results")
+  os.makedirs(scriptDir, exist_ok=True) 
   
   # write to file (create if not found, overwrite otherwise)
   # write investor summary file
+  fileNameInvestors = currentTimeString + "_" + experimentId + "_investors.csv"
+  completePathInvestors = os.path.join(scriptDir, fileNameInvestors)
   resultFile = open(completePathInvestors,"w") 
   resultFile.write(Investor.headerCSV() + "\n")
   for currentInvestor in marketInvestors: 
@@ -734,17 +767,15 @@ def market_experiment(experimentId = 'no_experiment_id_set', useSharedMarket = T
   resultFile.close() 
 
   # write file with complete stock output
+  fileNameStocks = currentTimeString + "_" + experimentId + "_stocks.csv"
+  completePathStocks = os.path.join(scriptDir, fileNameStocks)
   resultFile = open(completePathStocks,"w") 
   resultFile.write(Investor.headerCSVAllStocks() + "\n")
   for currentInvestor in marketInvestors: 
     resultFile.write(currentInvestor.descriptionCSVAllStocks() + "\n")
-  resultFile.close() 
-
-  # to-do
-  # overall cleanup and comments
-  # add unit tests with sample data for sell strategy and final calculations
+  resultFile.close()
   
-# run the actual thing
+# run the simulation
 ''' 
 signature: 
   market_experiment(
